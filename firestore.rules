@@ -4,98 +4,39 @@
  *
  * Data Structure: All user-specific data is hierarchically nested under a top-level `users` collection.
  * The structure `/users/{userId}/{subcollection}/{documentId}` ensures that a document's path inherently
- * defines its owner, making security rules simple, fast, and secure. This architecture directly resolves
- * permission errors related to listing user-specific content (like tags) from a global collection.
- *
- * Key Security Decisions:
- * - User Enumeration Disabled: Listing documents in the top-level `/users` collection is explicitly forbidden
- *   to protect user privacy and prevent scraping of user IDs.
- * - Strict Path-Based Ownership: A user's authentication UID (`request.auth.uid`) must match the `{userId}`
- *   wildcard in the document path for any access to be granted.
- * - Relational Integrity: On creation, documents must contain an internal `userId` field that matches the
- *   path, ensuring data consistency. Key identifiers like `id` and `userId` are immutable after creation.
- * - Prototyping Flexibility: While authorization is strict, data schemas are not. Rules do not validate
- *   the shape or type of most fields, allowing for rapid front-end development and iteration.
- *
- * Denormalization for Authorization: This ruleset relies on denormalization as a core security principle.
- * Every document in a user's subcollection (e.g., tags, activities) contains a `userId` field. This allows
- * for fast, self-contained authorization checks on the document itself, completely avoiding slow and costly
- * `get()` calls to parent documents.
- *
- * Structural Segregation: User data is strictly segregated. A user can only ever interact with documents
- * located within their own data tree (i.e., `/users/THEIR_OWN_ID/...`). This prevents any possibility of
- * data leakage between users and makes collection-level queries (`list`) secure.
+ * defines its owner, making security rules simple, fast, and secure.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions for reusable logic.
-
-    /**
-     * Checks if the user is authenticated and their UID matches the userId from the path.
-     * This is the foundation of the ownership model.
-     * @param userId The user ID from the document path.
-     */
     function isOwner(userId) {
       return request.auth != null && request.auth.uid == userId;
     }
 
-    /**
-     * Confirms ownership and that the document already exists.
-     * CRITICAL for all state-changing `update` and `delete` operations to prevent
-     * acting on non-existent documents.
-     * @param userId The user ID from the document path.
-     */
     function isExistingOwner(userId) {
       return isOwner(userId) && resource != null;
     }
 
-    /**
-     * Validates that the UserProfile being created has an `id` field
-     * that matches the user's own auth UID.
-     * @param userId The user ID from the document path.
-     */
     function isValidUserProfileCreate(userId) {
       return request.resource.data.id == userId;
     }
 
-    /**
-     * Enforces immutability for the `id` field on a UserProfile document.
-     * An update operation must not attempt to change the 'id'.
-     */
     function isImmutableUserProfileUpdate() {
       return !('id' in request.resource.data);
     }
 
-    /**
-     * Validates that a new subcollection document has its `userId` and `id` fields
-     * correctly set to match the path parameters.
-     * @param userId The user ID from the document path.
-     * @param docId The document ID from the document path.
-     */
     function isValidSubcollectionCreate(userId, docId) {
       return request.resource.data.userId == userId && request.resource.data.id == docId;
     }
 
-    /**
-     * Enforces immutability for the `userId` and `id` fields on subcollection documents.
-     * An update operation must not attempt to change these fields.
-     */
     function isImmutableSubcollectionUpdate() {
       return !('id' in request.resource.data) && !('userId' in request.resource.data);
     }
 
-    /**
-     * @description Rules for a user's own profile document.
-     * @path /users/{userId}
-     * @allow (create) An authenticated user can create their own profile document.
-     * @deny (list) No user, authenticated or not, can list all documents in the `/users` collection.
-     * @principle Restricts access to a user's own data tree and prevents user enumeration.
-     */
     match /users/{userId} {
       allow get: if isOwner(userId);
-      allow list: if false;
+      allow list: if false; // Prevent listing all users
       allow create: if isOwner(userId) && isValidUserProfileCreate(userId);
       allow update: if isExistingOwner(userId) && isImmutableUserProfileUpdate();
       allow delete: if isExistingOwner(userId);
@@ -122,24 +63,6 @@ service cloud.firestore {
        * @description Rules for the `periods` subcollection.
        */
       match /periods/{docId} {
-        allow get, list, delete: if isOwner(userId);
-        allow create: if isOwner(userId) && isValidSubcollectionCreate(userId, docId);
-        allow update: if isExistingOwner(userId) && isImmutableSubcollectionUpdate();
-      }
-
-      /**
-       * @description Rules for the `activeTimerSessions` subcollection.
-       */
-      match /activeTimerSessions/{docId} {
-        allow get, list, delete: if isOwner(userId);
-        allow create: if isOwner(userId) && isValidSubcollectionCreate(userId, docId);
-        allow update: if isExistingOwner(userId) && isImmutableSubcollectionUpdate();
-      }
-
-      /**
-       * @description Rules for the `activityLogs` subcollection.
-       */
-      match /activityLogs/{docId} {
         allow get, list, delete: if isOwner(userId);
         allow create: if isOwner(userId) && isValidSubcollectionCreate(userId, docId);
         allow update: if isExistingOwner(userId) && isImmutableSubcollectionUpdate();
