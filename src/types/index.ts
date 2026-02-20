@@ -16,12 +16,13 @@ export interface Task {
   status: TaskStatus;
   timeSpent: number; // in seconds
   createdAt: Timestamp;
-  // userId: string; // Add this when auth is implemented
+  userId: string;
 }
 
 export interface Tag {
     id: string;
     name: string;
+    userId: string;
 }
 
 export interface PomodoroSettings {

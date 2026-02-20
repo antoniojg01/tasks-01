@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from 'react';
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, orderBy } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { useState, useEffect, useCallback } from 'react';
+import { collection, onSnapshot, updateDoc, deleteDoc, doc, serverTimestamp, query, orderBy, setDoc } from 'firebase/firestore';
+import { useFirestore, useUser } from '@/firebase';
 import { Task, Tag } from '@/types';
 import { useToast } from './use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -13,61 +13,83 @@ export function useTasks() {
   const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const db = useFirestore();
+  const { user } = useUser();
 
   useEffect(() => {
+    if (!user) {
+      setLoading(false);
+      setTasks([]);
+      return;
+    };
+
     setLoading(true);
-    const q = query(collection(db, 'tasks'), orderBy('createdAt', 'desc'));
+    const q = query(collection(db, 'users', user.uid, 'tasks'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const tasksData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task));
+      const tasksData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Task));
       setTasks(tasksData);
       setLoading(false);
-    }, async (error) => {
+    }, (error) => {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: 'tasks',
+        path: `users/${user.uid}/tasks`,
         operation: 'list',
       }));
       setLoading(false);
     });
     return () => unsubscribe();
-  }, []);
-  
+  }, [db, user]);
+
   useEffect(() => {
-    const q = query(collection(db, 'tags'), orderBy('name'));
+    if (!user) {
+        setTags([]);
+        return;
+    }
+    const q = query(collection(db, 'users', user.uid, 'tags'), orderBy('name'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const tagsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Tag));
+      const tagsData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Tag));
       setTags(tagsData);
-    }, async (error) => {
+    }, (error) => {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: 'tags',
+        path: `users/${user.uid}/tags`,
         operation: 'list',
       }));
     });
     return () => unsubscribe();
-  }, []);
+  }, [db, user]);
 
 
-  const addTask = (task: Omit<Task, 'id' | 'createdAt' | 'timeSpent' | 'status'>) => {
+  const addTask = useCallback((task: Omit<Task, 'id' | 'createdAt' | 'timeSpent' | 'status' | 'userId'>) => {
+    if (!user) {
+        toast({ variant: 'destructive', title: "Error", description: "You must be logged in to add a task." });
+        return;
+    }
+    const newId = doc(collection(db, 'users', user.uid, 'tasks')).id;
     const taskData = {
       ...task,
+      id: newId,
+      userId: user.uid,
       status: 'pending' as const,
       timeSpent: 0,
       createdAt: serverTimestamp(),
     };
-    addDoc(collection(db, 'tasks'), taskData)
+    const taskRef = doc(db, 'users', user.uid, 'tasks', newId);
+
+    setDoc(taskRef, taskData)
       .then(() => {
         toast({ title: "Success", description: "Task created successfully." });
       })
       .catch(error => {
           errorEmitter.emit('permission-error', new FirestorePermissionError({
-              path: 'tasks',
+              path: taskRef.path,
               operation: 'create',
               requestResourceData: taskData
           }));
       });
-  };
+  }, [db, user, toast]);
 
-  const updateTask = (taskId: string, updates: Partial<Task>) => {
-    const taskRef = doc(db, 'tasks', taskId);
+  const updateTask = useCallback((taskId: string, updates: Partial<Task>) => {
+    if (!user) return;
+    const taskRef = doc(db, 'users', user.uid, 'tasks', taskId);
     updateDoc(taskRef, updates)
       .then(() => {
           toast({ title: "Success", description: "Task updated." });
@@ -79,10 +101,11 @@ export function useTasks() {
               requestResourceData: updates
           }));
       });
-  };
+  }, [db, user, toast]);
 
-  const deleteTask = (taskId: string) => {
-    const taskRef = doc(db, 'tasks', taskId);
+  const deleteTask = useCallback((taskId: string) => {
+    if (!user) return;
+    const taskRef = doc(db, 'users', user.uid, 'tasks', taskId);
     deleteDoc(taskRef)
       .then(() => {
           toast({ title: "Success", description: "Task deleted." });
@@ -93,26 +116,33 @@ export function useTasks() {
               operation: 'delete'
           }));
       });
-  };
-  
-  const addTag = (tagName: string) => {
+  }, [db, user, toast]);
+
+  const addTag = useCallback((tagName: string) => {
+    if (!user) {
+        toast({ variant: 'destructive', title: "Error", description: "You must be logged in to add a tag." });
+        return;
+    }
     if (tags.some(tag => tag.name.toLowerCase() === tagName.toLowerCase())) {
         toast({ title: "Info", description: "Tag already exists." });
         return;
     }
-    const tagData = { name: tagName };
-    addDoc(collection(db, 'tags'), tagData)
+    const newId = doc(collection(db, 'users', user.uid, 'tags')).id;
+    const tagData = { id: newId, name: tagName, userId: user.uid, createdAt: serverTimestamp() };
+    const tagRef = doc(db, 'users', user.uid, 'tags', newId);
+
+    setDoc(tagRef, tagData)
       .then(() => {
           toast({ title: "Success", description: `Tag "${tagName}" created.` });
       })
       .catch(error => {
           errorEmitter.emit('permission-error', new FirestorePermissionError({
-              path: 'tags',
+              path: tagRef.path,
               operation: 'create',
               requestResourceData: tagData
           }));
       });
-  };
+  }, [db, user, tags, toast]);
 
   return { tasks, tags, loading, addTask, updateTask, deleteTask, addTag };
 }
