@@ -1,0 +1,253 @@
+"use client";
+
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import * as z from "zod";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { useTasks } from "@/hooks/use-tasks";
+import type { Task, TaskPeriod, TaskPriority, TaskType, Tag } from "@/types";
+import { useEffect } from "react";
+import { X, Tag as TagIcon } from "lucide-react";
+import { Badge } from "../ui/badge";
+
+const formSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters."),
+  type: z.enum(["task", "habit"]),
+  priority: z.enum(["low", "medium", "high"]),
+  period: z.enum(["Morning", "Afternoon", "Evening", "Anytime"]),
+  tags: z.array(z.string()).optional(),
+});
+
+type TaskFormProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  task?: Task;
+};
+
+export function TaskForm({ open, onOpenChange, task }: TaskFormProps) {
+  const { addTask, updateTask, tags: allTags, addTag } = useTasks();
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      name: "",
+      type: "task",
+      priority: "medium",
+      period: "Anytime",
+      tags: [],
+    },
+  });
+
+  useEffect(() => {
+    if (task) {
+      form.reset({
+        name: task.name,
+        type: task.type,
+        priority: task.priority,
+        period: task.period,
+        tags: task.tags || [],
+      });
+    } else {
+      form.reset();
+    }
+  }, [task, open, form]);
+
+  const onSubmit = (values: z.infer<typeof formSchema>) => {
+    if (task) {
+      updateTask(task.id, values);
+    } else {
+      addTask(values);
+    }
+    onOpenChange(false);
+  };
+  
+  const handleAddTag = (tagId: string) => {
+    const currentTags = form.getValues('tags') || [];
+    if (!currentTags.includes(tagId)) {
+        form.setValue('tags', [...currentTags, tagId]);
+    }
+  }
+  
+  const handleRemoveTag = (tagId: string) => {
+    const currentTags = form.getValues('tags') || [];
+    form.setValue('tags', currentTags.filter(t => t !== tagId));
+  }
+  
+  const handleCreateTag = () => {
+      const newTagName = prompt("Enter new tag name:");
+      if(newTagName) {
+          addTag(newTagName);
+      }
+  }
+
+  const selectedTags = form.watch('tags') || [];
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>{task ? "Edit Task" : "Create Task"}</DialogTitle>
+          <DialogDescription>
+            {task ? "Make changes to your task." : "Add a new task to your list."}
+          </DialogDescription>
+        </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g., Finish report" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <FormField
+              control={form.control}
+              name="type"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Type</FormLabel>
+                  <RadioGroup
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                    className="flex space-x-4"
+                  >
+                    <FormItem className="flex items-center space-x-2">
+                      <FormControl>
+                        <RadioGroupItem value="task" id="task" />
+                      </FormControl>
+                      <FormLabel htmlFor="task">Task</FormLabel>
+                    </FormItem>
+                    <FormItem className="flex items-center space-x-2">
+                      <FormControl>
+                        <RadioGroupItem value="habit" id="habit" />
+                      </FormControl>
+                      <FormLabel htmlFor="habit">Habit</FormLabel>
+                    </FormItem>
+                  </RadioGroup>
+                </FormItem>
+              )}
+            />
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="priority"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Priority</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select priority" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="low">Low</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="high">High</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="period"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Period</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select period" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="Morning">Morning</SelectItem>
+                        <SelectItem value="Afternoon">Afternoon</SelectItem>
+                        <SelectItem value="Evening">Evening</SelectItem>
+                        <SelectItem value="Anytime">Anytime</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )}
+              />
+            </div>
+            
+            <FormField
+              control={form.control}
+              name="tags"
+              render={() => (
+                <FormItem>
+                  <FormLabel>Tags</FormLabel>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedTags.map(tagId => {
+                        const tag = allTags.find(t => t.id === tagId);
+                        return tag ? (
+                            <Badge key={tag.id} variant="secondary" className="flex items-center gap-1">
+                                {tag.name}
+                                <button type="button" onClick={() => handleRemoveTag(tag.id)} className="rounded-full hover:bg-muted-foreground/20">
+                                    <X className="h-3 w-3" />
+                                </button>
+                            </Badge>
+                        ) : null;
+                    })}
+                  </div>
+                  <Select onValueChange={handleAddTag}>
+                    <SelectTrigger>
+                        <SelectValue placeholder="Add tags..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {allTags.filter(t => !selectedTags.includes(t.id)).map(tag => (
+                            <SelectItem key={tag.id} value={tag.id}>{tag.name}</SelectItem>
+                        ))}
+                        <Button variant="ghost" className="w-full justify-start mt-1" type="button" onClick={handleCreateTag}>
+                            <TagIcon className="h-4 w-4 mr-2" />
+                            Create new tag
+                        </Button>
+                    </SelectContent>
+                  </Select>
+                </FormItem>
+              )}
+            />
+
+            <DialogFooter>
+              <Button type="submit">{task ? "Save Changes" : "Create Task"}</Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
