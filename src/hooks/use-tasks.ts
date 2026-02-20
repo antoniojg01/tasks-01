@@ -91,7 +91,7 @@ export function useTasks() {
   }, [db, user]);
 
 
-  const addTask = useCallback((task: Omit<Task, 'id' | 'createdAt' | 'timeSpent' | 'status' | 'userId' | 'pomodoroSettings'>) => {
+  const addTask = useCallback((task: Omit<Task, 'id' | 'createdAt' | 'timeSpent' | 'status' | 'userId'>) => {
     if (!user) {
         toast({ variant: 'destructive', title: "Error", description: "You must be logged in to add a task." });
         return;

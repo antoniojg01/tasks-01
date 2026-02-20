@@ -31,9 +31,11 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useTasks } from "@/hooks/use-tasks";
 import type { Task } from "@/types";
+import { DEFAULT_POMODORO_SETTINGS } from "@/types";
 import { useEffect } from "react";
-import { X, Tag as TagIcon, PlusCircle } from "lucide-react";
+import { X, Tag as TagIcon, PlusCircle, BrainCircuit, ChevronDown } from "lucide-react";
 import { Badge } from "../ui/badge";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 
 const formSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters."),
@@ -41,6 +43,12 @@ const formSchema = z.object({
   priority: z.enum(["low", "medium", "high"]),
   periodId: z.string().min(1, "Period is required."),
   tags: z.array(z.string()).optional(),
+  pomodoroSettings: z.object({
+    workDuration: z.coerce.number().min(1, "Must be at least 1 minute."),
+    shortBreakDuration: z.coerce.number().min(1, "Must be at least 1 minute."),
+    longBreakDuration: z.coerce.number().min(1, "Must be at least 1 minute."),
+    cycles: z.coerce.number().min(1, "Must be at least 1 cycle."),
+  }).optional(),
 });
 
 type TaskFormProps = {
@@ -59,6 +67,7 @@ export function TaskForm({ open, onOpenChange, task }: TaskFormProps) {
       priority: "medium",
       periodId: "",
       tags: [],
+      pomodoroSettings: DEFAULT_POMODORO_SETTINGS,
     },
   });
 
@@ -70,6 +79,7 @@ export function TaskForm({ open, onOpenChange, task }: TaskFormProps) {
         priority: task.priority,
         periodId: task.periodId,
         tags: task.tags || [],
+        pomodoroSettings: task.pomodoroSettings || DEFAULT_POMODORO_SETTINGS,
       });
     } else {
       const defaultPeriod = allPeriods.find(p => p.name === 'Anytime') || allPeriods[0];
@@ -79,6 +89,7 @@ export function TaskForm({ open, onOpenChange, task }: TaskFormProps) {
         priority: "medium",
         periodId: defaultPeriod?.id || "",
         tags: [],
+        pomodoroSettings: DEFAULT_POMODORO_SETTINGS,
       });
     }
   }, [task, open, form, allPeriods]);
@@ -259,6 +270,74 @@ export function TaskForm({ open, onOpenChange, task }: TaskFormProps) {
                 </FormItem>
               )}
             />
+
+            <Collapsible className="space-y-2 pt-2">
+              <CollapsibleTrigger className="flex justify-between items-center w-full p-2 -mx-2 rounded-md hover:bg-accent">
+                <div className="flex items-center gap-2">
+                    <BrainCircuit className="h-5 w-5 text-primary" />
+                    <FormLabel className="cursor-pointer">Pomodoro Settings</FormLabel>
+                </div>
+                <ChevronDown className="h-4 w-4 transition-transform [&[data-state=open]]:rotate-180" />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-4 pt-2">
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="pomodoroSettings.workDuration"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Work (min)</FormLabel>
+                        <FormControl>
+                          <Input type="number" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="pomodoroSettings.shortBreakDuration"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Short Break (min)</FormLabel>
+                        <FormControl>
+                          <Input type="number" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="pomodoroSettings.longBreakDuration"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Long Break (min)</FormLabel>
+                        <FormControl>
+                          <Input type="number" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="pomodoroSettings.cycles"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Cycles</FormLabel>
+                        <FormControl>
+                          <Input type="number" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
 
             <DialogFooter>
               <Button type="submit">{task ? "Save Changes" : "Create Task"}</Button>
