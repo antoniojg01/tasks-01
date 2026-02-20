@@ -2,9 +2,11 @@
 
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
 import { FirebaseApp } from 'firebase/app';
-import { Firestore } from 'firebase/firestore';
+import { Firestore, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
-import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
+import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
+import { errorEmitter } from './error-emitter';
+import { FirestorePermissionError } from './errors';
 
 interface FirebaseProviderProps {
   children: ReactNode;
@@ -78,7 +80,31 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
 
     const unsubscribe = onAuthStateChanged(
       auth,
-      (firebaseUser) => { // Auth state determined
+      async (firebaseUser) => { // Auth state determined
+        if (firebaseUser) {
+          // User is signed in, check for user profile in Firestore
+          const userRef = doc(firestore, "users", firebaseUser.uid);
+          try {
+            const userDoc = await getDoc(userRef);
+            if (!userDoc.exists()) {
+              // User profile doesn't exist, create it
+              const newUserProfile = {
+                id: firebaseUser.uid,
+                email: firebaseUser.email,
+                displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0],
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+              };
+              await setDoc(userRef, newUserProfile);
+            }
+          } catch (error) {
+            // This could be a permission error on getDoc or setDoc
+             errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: userRef.path,
+                operation: 'write',
+             }));
+          }
+        }
         setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null });
       },
       (error) => { // Auth listener error
@@ -87,7 +113,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
       }
     );
     return () => unsubscribe(); // Cleanup
-  }, [auth]); // Depends on the auth instance
+  }, [auth, firestore]); // Depends on the auth instance
 
   // Memoize the context value
   const contextValue = useMemo((): FirebaseContextState => {

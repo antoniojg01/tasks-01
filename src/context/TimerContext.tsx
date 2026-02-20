@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
 import { formatTime } from '@/lib/utils';
 import type { Task, TimerMode, PomodoroSettings } from '@/types';
 import { DEFAULT_POMODORO_SETTINGS } from '@/types';
@@ -38,10 +38,15 @@ export const TimerProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
   const db = useFirestore();
   const { user } = useUser();
+  
+  const timersRef = useRef(timers);
+  useEffect(() => {
+    timersRef.current = timers;
+  }, [timers]);
 
-  const pauseTimer = useCallback((taskId: string) => {
+  const pauseTimer = useCallback((taskId: string, isUnloading = false) => {
     if (!user) return;
-    const timer = timers.get(taskId);
+    const timer = timersRef.current.get(taskId);
     if (timer && timer.isRunning) {
       const elapsed = timer.startTime ? Math.floor((Date.now() - timer.startTime) / 1000) : 0;
       
@@ -60,7 +65,10 @@ export const TimerProvider = ({ children }: { children: ReactNode }) => {
 
       setTimers(prev => {
         const newTimers = new Map(prev);
-        newTimers.set(taskId, { ...timer, time: Math.max(0, newTimeForDisplay), isRunning: false, startTime: null });
+        const timerToUpdate = newTimers.get(taskId);
+        if (timerToUpdate) {
+            newTimers.set(taskId, { ...timerToUpdate, time: Math.max(0, newTimeForDisplay), isRunning: false, startTime: null });
+        }
         return newTimers;
       });
 
@@ -75,15 +83,19 @@ export const TimerProvider = ({ children }: { children: ReactNode }) => {
           updates.timeSpent = newTotalTimeSpent;
       }
 
-      updateDoc(taskRef, updates).catch(error => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: taskRef.path,
-            operation: 'update',
-            requestResourceData: updates
-        }));
-      });
+      const updatePromise = updateDoc(taskRef, updates);
+
+      if (!isUnloading) {
+        updatePromise.catch(error => {
+          errorEmitter.emit('permission-error', new FirestorePermissionError({
+              path: taskRef.path,
+              operation: 'update',
+              requestResourceData: updates
+          }));
+        });
+      }
     }
-  }, [db, user, timers, activeTimerInTitle]);
+  }, [db, user, activeTimerInTitle]);
 
   const handlePomodoroTransition = useCallback((taskId: string) => {
     if (!user) return;
@@ -117,7 +129,7 @@ export const TimerProvider = ({ children }: { children: ReactNode }) => {
 
         if (timer.pomodoroState === 'work') {
             nextCycle = timer.currentCycle + 1;
-            if ((timer.currentCycle % timer.pomodoroSettings.cycles) === 0) {
+            if ((timer.currentCycle > 0) && (timer.currentCycle % timer.pomodoroSettings.cycles) === 0) {
                 nextState = 'longBreak';
                 nextTime = timer.pomodoroSettings.longBreakDuration * 60;
                 notificationTitle = "Long Break Time!";
@@ -198,11 +210,29 @@ export const TimerProvider = ({ children }: { children: ReactNode }) => {
     return () => clearInterval(interval);
   }, [activeTimerInTitle, toast, handlePomodoroTransition]);
 
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        timersRef.current.forEach((timer, taskId) => {
+          if (timer.isRunning) {
+            pauseTimer(taskId, true);
+          }
+        });
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [pauseTimer]);
+
 
   const startTimer = (task: Task, mode: TimerMode, duration: number = 0) => {
     if (!user) return;
     
-    timers.forEach((timer, timerId) => {
+    timersRef.current.forEach((timer, timerId) => {
         if (timer.isRunning && timerId !== task.id) {
             pauseTimer(timerId);
         }
