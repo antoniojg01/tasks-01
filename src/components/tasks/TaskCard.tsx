@@ -17,7 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MoreVertical, Trash2, Edit, CheckCircle, XCircle } from "lucide-react";
-import type { Task, Tag, Period } from "@/types";
+import type { Task, Tag, Period, TaskPriority } from "@/types";
 import { useTasks } from "@/hooks/use-tasks";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -30,10 +30,10 @@ type TaskCardProps = {
   allPeriods: Period[];
 };
 
-const priorityStyles = {
-  high: "bg-red-500 text-white",
-  medium: "bg-yellow-500 text-white",
-  low: "bg-blue-500 text-white",
+const priorityDisplay: Record<TaskPriority, { variant: "destructive" | "secondary" | "outline"; label: string }> = {
+    high: { variant: 'destructive', label: 'High' },
+    medium: { variant: 'secondary', label: 'Medium' },
+    low: { variant: 'outline', label: 'Low' },
 };
 
 export function TaskCard({ task, allTags, allPeriods }: TaskCardProps) {
@@ -46,21 +46,23 @@ export function TaskCard({ task, allTags, allPeriods }: TaskCardProps) {
   
   const taskTags = allTags.filter(t => task.tags.includes(t.id));
   const period = allPeriods.find(p => p.id === task.periodId);
+  const displayInfo = priorityDisplay[task.priority];
 
   return (
     <>
       <Card
         className={cn(
           "flex flex-col justify-between transition-all duration-300",
-          task.status === "completed" && "bg-accent/30 border-accent",
-          task.status === "in-progress" && "shadow-lg shadow-primary/20 border-primary"
+          task.status === "completed" && "opacity-50",
+          task.status === "abandoned" && "opacity-50",
+          task.status === "in-progress" && "border-l-4 border-l-primary"
         )}
       >
         <CardHeader className="flex-row items-start justify-between pb-2">
           <div className="space-y-1">
-            <CardTitle className="text-lg font-semibold">{task.name}</CardTitle>
+            <CardTitle className="text-base font-semibold">{task.name}</CardTitle>
             <CardDescription className="flex items-center gap-2 text-xs">
-              <Badge variant="outline" className={cn(priorityStyles[task.priority])}>{task.priority}</Badge>
+              {displayInfo && <Badge variant={displayInfo.variant}>{displayInfo.label}</Badge>}
               {period && <Badge variant="secondary">{period.name}</Badge>}
             </CardDescription>
           </div>

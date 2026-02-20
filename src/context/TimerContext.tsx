@@ -19,6 +19,7 @@ interface TimerState {
   pomodoroSettings: PomodoroSettings;
   startTime: number | null;
   initialTimeSpent: number;
+  initialDuration: number;
 }
 
 interface TimerContextType {
@@ -110,12 +111,13 @@ export const TimerProvider = ({ children }: { children: ReactNode }) => {
         let nextState: 'work' | 'shortBreak' | 'longBreak' = timer.pomodoroState;
         let nextTime = timer.time;
         let nextCycle = timer.currentCycle;
+        let initialDuration = timer.initialDuration;
         let notificationTitle = '';
         let notificationMessage = '';
 
         if (timer.pomodoroState === 'work') {
             nextCycle = timer.currentCycle + 1;
-            if (timer.currentCycle % timer.pomodoroSettings.cycles === 0) {
+            if ((timer.currentCycle % timer.pomodoroSettings.cycles) === 0) {
                 nextState = 'longBreak';
                 nextTime = timer.pomodoroSettings.longBreakDuration * 60;
                 notificationTitle = "Long Break Time!";
@@ -132,12 +134,14 @@ export const TimerProvider = ({ children }: { children: ReactNode }) => {
             notificationTitle = "Back to Work!";
             notificationMessage = `Starting a new ${timer.pomodoroSettings.workDuration}-minute work session.`;
         }
+        initialDuration = nextTime;
 
         toast({ title: notificationTitle, description: notificationMessage });
         newTimers.set(taskId, {
             ...timer,
             pomodoroState: nextState,
             time: nextTime,
+            initialDuration: initialDuration,
             currentCycle: nextCycle,
             startTime: Date.now(),
             initialTimeSpent: newTotalTimeSpent,
@@ -214,11 +218,21 @@ export const TimerProvider = ({ children }: { children: ReactNode }) => {
       const currentCycle = existingTimer?.currentCycle ?? 1;
 
       let time = baseTime;
+      let initialDuration = existingTimer?.initialDuration || 0;
 
       if (mode !== existingTimer?.mode) {
-          if(mode === 'timer') time = duration * 60;
-          if(mode === 'pomodoro') time = (task.pomodoroSettings?.workDuration || DEFAULT_POMODORO_SETTINGS.workDuration) * 60;
-          if(mode === 'stopwatch') time = task.timeSpent;
+          if(mode === 'timer') {
+              time = duration * 60;
+              initialDuration = duration * 60;
+          }
+          if(mode === 'pomodoro') {
+              time = (task.pomodoroSettings?.workDuration || DEFAULT_POMODORO_SETTINGS.workDuration) * 60;
+              initialDuration = time;
+          }
+          if(mode === 'stopwatch') {
+              time = task.timeSpent;
+              initialDuration = 0;
+          }
       }
       
       newTimers.set(task.id, {
@@ -230,6 +244,7 @@ export const TimerProvider = ({ children }: { children: ReactNode }) => {
         pomodoroSettings: task.pomodoroSettings || DEFAULT_POMODORO_SETTINGS,
         startTime: Date.now(),
         initialTimeSpent,
+        initialDuration
       });
       return newTimers;
     });
@@ -267,6 +282,7 @@ export const TimerProvider = ({ children }: { children: ReactNode }) => {
 
     let timeToSetForDisplay = 0;
     let initialTimeSpentToSet = timer.initialTimeSpent;
+    let initialDurationToSet = 0;
     
     if (timer.mode === 'stopwatch') {
       const taskRef = doc(db, 'users', user.uid, 'tasks', taskId);
@@ -281,6 +297,9 @@ export const TimerProvider = ({ children }: { children: ReactNode }) => {
       initialTimeSpentToSet = 0;
     } else if (timer.mode === 'pomodoro') {
        timeToSetForDisplay = timer.pomodoroSettings.workDuration * 60;
+       initialDurationToSet = timeToSetForDisplay;
+    } else if (timer.mode === 'timer') {
+        timeToSetForDisplay = timer.initialDuration;
     }
     
     setTimers(prev => {
@@ -295,6 +314,7 @@ export const TimerProvider = ({ children }: { children: ReactNode }) => {
             pomodoroState: 'work',
             currentCycle: 1,
             initialTimeSpent: initialTimeSpentToSet,
+            initialDuration: initialDurationToSet,
         });
       }
       return newTimers;

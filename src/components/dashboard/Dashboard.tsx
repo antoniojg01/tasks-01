@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { Task, Tag } from "@/types";
+import type { Task } from "@/types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatsView } from "./StatsView";
 import { Activity, Tag as TagIcon, GripVertical } from "lucide-react";
@@ -86,45 +86,45 @@ export function Dashboard() {
                 {renderSkeleton()}
             </div>
           ) : (
-            <Accordion type="multiple" defaultValue={['habits', 'untagged', ...allTagNames]} className="w-full space-y-4">
-              <AccordionItem value="habits" className="border rounded-lg bg-card overflow-hidden">
-                <AccordionTrigger className="px-4 py-3 text-lg font-medium hover:no-underline">
+            <Accordion type="multiple" defaultValue={['habits']} className="w-full space-y-1">
+              <AccordionItem value="habits">
+                <AccordionTrigger className="text-base font-semibold">
                   <div className="flex items-center gap-3">
                     <Activity className="w-5 h-5 text-primary" />
                     Habits
                     <Badge variant="secondary">{habits.length}</Badge>
                   </div>
                 </AccordionTrigger>
-                <AccordionContent className="p-4 pt-0">
+                <AccordionContent className="pt-4">
                   {habits.length > 0 ? renderTaskList(habits) : <p className="text-muted-foreground text-center p-4">No active habits.</p>}
                 </AccordionContent>
               </AccordionItem>
 
               {allTagNames.map((tagName) => (
-                <AccordionItem key={tagName} value={tagName} className="border rounded-lg bg-card overflow-hidden">
-                   <AccordionTrigger className="px-4 py-3 text-lg font-medium hover:no-underline">
+                <AccordionItem key={tagName} value={tagName}>
+                   <AccordionTrigger className="text-base font-semibold">
                     <div className="flex items-center gap-3">
                       <TagIcon className="w-5 h-5 text-primary"/>
                        {tagName}
                        <Badge variant="secondary">{(tasksByTag.grouped[tagName] || []).length}</Badge>
                     </div>
                   </AccordionTrigger>
-                  <AccordionContent className="p-4 pt-0">
+                  <AccordionContent className="pt-4">
                     {renderTaskList(tasksByTag.grouped[tagName] || [])}
                   </AccordionContent>
                 </AccordionItem>
               ))}
               
               {tasksByTag.untagged.length > 0 && (
-                <AccordionItem value="untagged" className="border rounded-lg bg-card overflow-hidden">
-                  <AccordionTrigger className="px-4 py-3 text-lg font-medium hover:no-underline">
+                <AccordionItem value="untagged">
+                  <AccordionTrigger className="text-base font-semibold">
                     <div className="flex items-center gap-3">
                     <GripVertical className="w-5 h-5 text-primary"/>
                     Untagged Tasks
                     <Badge variant="secondary">{tasksByTag.untagged.length}</Badge>
                     </div>
                   </AccordionTrigger>
-                  <AccordionContent className="p-4 pt-0">
+                  <AccordionContent className="pt-4">
                     {renderTaskList(tasksByTag.untagged)}
                   </AccordionContent>
                 </AccordionItem>
