@@ -17,7 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MoreVertical, Trash2, Edit, CheckCircle, XCircle } from "lucide-react";
-import type { Task, Tag } from "@/types";
+import type { Task, Tag, Period } from "@/types";
 import { useTasks } from "@/hooks/use-tasks";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -27,6 +27,7 @@ import { TimerControls } from "./TimerControls";
 type TaskCardProps = {
   task: Task;
   allTags: Tag[];
+  allPeriods: Period[];
 };
 
 const priorityStyles = {
@@ -35,7 +36,7 @@ const priorityStyles = {
   low: "bg-blue-500 text-white",
 };
 
-export function TaskCard({ task, allTags }: TaskCardProps) {
+export function TaskCard({ task, allTags, allPeriods }: TaskCardProps) {
   const { updateTask, deleteTask } = useTasks();
   const [isEditing, setIsEditing] = useState(false);
 
@@ -44,6 +45,7 @@ export function TaskCard({ task, allTags }: TaskCardProps) {
   };
   
   const taskTags = allTags.filter(t => task.tags.includes(t.id));
+  const period = allPeriods.find(p => p.id === task.periodId);
 
   return (
     <>
@@ -59,7 +61,7 @@ export function TaskCard({ task, allTags }: TaskCardProps) {
             <CardTitle className="text-lg font-semibold">{task.name}</CardTitle>
             <CardDescription className="flex items-center gap-2 text-xs">
               <Badge variant="outline" className={cn(priorityStyles[task.priority])}>{task.priority}</Badge>
-              <Badge variant="secondary">{task.period}</Badge>
+              {period && <Badge variant="secondary">{period.name}</Badge>}
             </CardDescription>
           </div>
           <DropdownMenu>

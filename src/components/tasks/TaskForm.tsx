@@ -30,16 +30,16 @@ import {
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useTasks } from "@/hooks/use-tasks";
-import type { Task, TaskPeriod, TaskPriority, TaskType, Tag } from "@/types";
+import type { Task } from "@/types";
 import { useEffect } from "react";
-import { X, Tag as TagIcon } from "lucide-react";
+import { X, Tag as TagIcon, PlusCircle } from "lucide-react";
 import { Badge } from "../ui/badge";
 
 const formSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters."),
   type: z.enum(["task", "habit"]),
   priority: z.enum(["low", "medium", "high"]),
-  period: z.enum(["Morning", "Afternoon", "Evening", "Anytime"]),
+  periodId: z.string().min(1, "Period is required."),
   tags: z.array(z.string()).optional(),
 });
 
@@ -50,14 +50,14 @@ type TaskFormProps = {
 };
 
 export function TaskForm({ open, onOpenChange, task }: TaskFormProps) {
-  const { addTask, updateTask, tags: allTags, addTag } = useTasks();
+  const { addTask, updateTask, tags: allTags, addTag, periods: allPeriods, addPeriod } = useTasks();
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
       type: "task",
       priority: "medium",
-      period: "Anytime",
+      periodId: "",
       tags: [],
     },
   });
@@ -68,13 +68,20 @@ export function TaskForm({ open, onOpenChange, task }: TaskFormProps) {
         name: task.name,
         type: task.type,
         priority: task.priority,
-        period: task.period,
+        periodId: task.periodId,
         tags: task.tags || [],
       });
     } else {
-      form.reset();
+      const defaultPeriod = allPeriods.find(p => p.name === 'Anytime') || allPeriods[0];
+      form.reset({
+        name: "",
+        type: "task",
+        priority: "medium",
+        periodId: defaultPeriod?.id || "",
+        tags: [],
+      });
     }
-  }, [task, open, form]);
+  }, [task, open, form, allPeriods]);
 
   const onSubmit = (values: z.infer<typeof formSchema>) => {
     if (task) {
@@ -102,6 +109,13 @@ export function TaskForm({ open, onOpenChange, task }: TaskFormProps) {
       if(newTagName) {
           addTag(newTagName);
       }
+  }
+
+  const handleCreatePeriod = () => {
+    const newPeriodName = prompt("Enter new period name:");
+    if(newPeriodName) {
+        addPeriod(newPeriodName);
+    }
   }
 
   const selectedTags = form.watch('tags') || [];
@@ -183,23 +197,27 @@ export function TaskForm({ open, onOpenChange, task }: TaskFormProps) {
               />
               <FormField
                 control={form.control}
-                name="period"
+                name="periodId"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Period</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select period" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="Morning">Morning</SelectItem>
-                        <SelectItem value="Afternoon">Afternoon</SelectItem>
-                        <SelectItem value="Evening">Evening</SelectItem>
-                        <SelectItem value="Anytime">Anytime</SelectItem>
+                        {allPeriods.map(period => (
+                            <SelectItem key={period.id} value={period.id}>{period.name}</SelectItem>
+                        ))}
+                        <Button variant="ghost" className="w-full justify-start mt-1" type="button" onClick={handleCreatePeriod}>
+                            <PlusCircle className="h-4 w-4 mr-2" />
+                            Create new period
+                        </Button>
                       </SelectContent>
                     </Select>
+                    <FormMessage />
                   </FormItem>
                 )}
               />

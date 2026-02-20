@@ -18,7 +18,7 @@ import { Activity, Tag as TagIcon, GripVertical } from "lucide-react";
 import { useMemo } from "react";
 
 export function Dashboard() {
-  const { tasks, tags, loading } = useTasks();
+  const { tasks, tags, periods, loading } = useTasks();
 
   const activeTasks = useMemo(() => tasks.filter(t => t.status !== 'completed' && t.status !== 'abandoned'), [tasks]);
   const completedTasks = useMemo(() => tasks.filter(t => t.status === 'completed' || t.status === 'abandoned'), [tasks]);
@@ -57,7 +57,7 @@ export function Dashboard() {
   const renderTaskList = (taskList: Task[]) => (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {taskList.map((task) => (
-        <TaskCard key={task.id} task={task} allTags={tags} />
+        <TaskCard key={task.id} task={task} allTags={tags} allPeriods={periods} />
       ))}
     </div>
   );

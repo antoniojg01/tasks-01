@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { collection, onSnapshot, updateDoc, deleteDoc, doc, serverTimestamp, query, orderBy, setDoc } from 'firebase/firestore';
 import { useFirestore, useUser } from '@/firebase';
-import { Task, Tag } from '@/types';
+import { Task, Tag, Period } from '@/types';
 import { useToast } from './use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -11,6 +11,7 @@ import { FirestorePermissionError } from '@/firebase/errors';
 export function useTasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
+  const [periods, setPeriods] = useState<Period[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   const db = useFirestore();
@@ -20,6 +21,8 @@ export function useTasks() {
     if (!user) {
       setLoading(false);
       setTasks([]);
+      setTags([]);
+      setPeriods([]);
       return;
     };
 
@@ -57,8 +60,38 @@ export function useTasks() {
     return () => unsubscribe();
   }, [db, user]);
 
+  useEffect(() => {
+    if (!user) {
+        setPeriods([]);
+        return;
+    }
+    const q = query(collection(db, 'users', user.uid, 'periods'), orderBy('name'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const periodsData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Period));
+      if (snapshot.empty) {
+        const newId = doc(collection(db, 'users', user.uid, 'periods')).id;
+        const defaultPeriod = { id: newId, name: 'Anytime', userId: user.uid, createdAt: serverTimestamp() };
+        const periodRef = doc(db, 'users', user.uid, 'periods', newId);
+        setDoc(periodRef, defaultPeriod).catch(error => {
+          errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: periodRef.path,
+            operation: 'create',
+            requestResourceData: defaultPeriod
+          }));
+        });
+      }
+      setPeriods(periodsData);
+    }, (error) => {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: `users/${user.uid}/periods`,
+        operation: 'list',
+      }));
+    });
+    return () => unsubscribe();
+  }, [db, user]);
 
-  const addTask = useCallback((task: Omit<Task, 'id' | 'createdAt' | 'timeSpent' | 'status' | 'userId'>) => {
+
+  const addTask = useCallback((task: Omit<Task, 'id' | 'createdAt' | 'timeSpent' | 'status' | 'userId' | 'pomodoroSettings'>) => {
     if (!user) {
         toast({ variant: 'destructive', title: "Error", description: "You must be logged in to add a task." });
         return;
@@ -144,5 +177,31 @@ export function useTasks() {
       });
   }, [db, user, tags, toast]);
 
-  return { tasks, tags, loading, addTask, updateTask, deleteTask, addTag };
+  const addPeriod = useCallback((periodName: string) => {
+    if (!user) {
+        toast({ variant: 'destructive', title: "Error", description: "You must be logged in to add a period." });
+        return;
+    }
+    if (periods.some(p => p.name.toLowerCase() === periodName.toLowerCase())) {
+        toast({ title: "Info", description: "Period already exists." });
+        return;
+    }
+    const newId = doc(collection(db, 'users', user.uid, 'periods')).id;
+    const periodData = { id: newId, name: periodName, userId: user.uid, createdAt: serverTimestamp() };
+    const periodRef = doc(db, 'users', user.uid, 'periods', newId);
+
+    setDoc(periodRef, periodData)
+      .then(() => {
+          toast({ title: "Success", description: `Period "${periodName}" created.` });
+      })
+      .catch(error => {
+          errorEmitter.emit('permission-error', new FirestorePermissionError({
+              path: periodRef.path,
+              operation: 'create',
+              requestResourceData: periodData
+          }));
+      });
+  }, [db, user, periods, toast]);
+
+  return { tasks, tags, periods, loading, addTask, updateTask, deleteTask, addTag, addPeriod };
 }
