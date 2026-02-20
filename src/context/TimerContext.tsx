@@ -7,6 +7,8 @@ import { DEFAULT_POMODORO_SETTINGS } from '@/types';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 interface TimerState {
   time: number;
@@ -33,27 +35,23 @@ export const TimerProvider = ({ children }: { children: ReactNode }) => {
   const [activeTimerInTitle, setActiveTimerInTitle] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const updateTimeSpentInDb = useCallback(async (taskId: string, timeToAdd: number) => {
-    try {
-      const taskRef = doc(db, 'tasks', taskId);
-      const currentTimer = timers.get(taskId);
-      if (!currentTimer) return;
-      
-      const newTimeSpent = Math.max(0, (timers.get(taskId)?.time || 0) + timeToAdd);
+  const updateTimeSpentInDb = useCallback((taskId: string, timeToAdd: number) => {
+    const taskRef = doc(db, 'tasks', taskId);
+    const currentTimer = timers.get(taskId);
+    if (!currentTimer) return;
+    
+    const newTimeSpent = Math.max(0, (timers.get(taskId)?.time || 0) + timeToAdd);
 
-      await updateDoc(taskRef, {
-        timeSpent: newTimeSpent,
+    const updates = { timeSpent: newTimeSpent };
+    updateDoc(taskRef, updates)
+      .catch((error) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: taskRef.path,
+            operation: 'update',
+            requestResourceData: updates,
+        }));
       });
-
-    } catch (error) {
-      console.error("Error updating time spent:", error);
-      toast({
-        title: "Error",
-        description: "Could not save progress to the cloud.",
-        variant: "destructive",
-      });
-    }
-  }, [timers, toast]);
+  }, [timers]);
 
   const pauseTimer = useCallback((taskId: string) => {
     const timer = timers.get(taskId);
@@ -73,7 +71,14 @@ export const TimerProvider = ({ children }: { children: ReactNode }) => {
       }
       
       const taskRef = doc(db, 'tasks', taskId);
-      updateDoc(taskRef, { status: 'pending' });
+      const updates = { status: 'pending' as const };
+      updateDoc(taskRef, updates).catch(error => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: taskRef.path,
+            operation: 'update',
+            requestResourceData: updates
+        }));
+      });
     }
   }, [timers, activeTimerInTitle]);
 
@@ -158,7 +163,7 @@ export const TimerProvider = ({ children }: { children: ReactNode }) => {
             if(activeTimerInTitle === taskId) {
               const currentTimer = newTimers.get(activeTimerInTitle);
               if (currentTimer) {
-                document.title = `${formatTime(currentTimer.time)} - TaskFlow`;
+                document.title = `${formatTime(Math.round(currentTimer.time))} - TaskFlow`;
                 titleSet = true;
               }
             }
@@ -202,7 +207,14 @@ export const TimerProvider = ({ children }: { children: ReactNode }) => {
     
     setActiveTimerInTitle(task.id);
     const taskRef = doc(db, 'tasks', task.id);
-    updateDoc(taskRef, { status: 'in-progress' });
+    const updates = { status: 'in-progress' as const };
+    updateDoc(taskRef, updates).catch(error => {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: taskRef.path,
+        operation: 'update',
+        requestResourceData: updates
+      }));
+    });
   };
 
   const resetTimer = async (taskId: string) => {
@@ -210,7 +222,7 @@ export const TimerProvider = ({ children }: { children: ReactNode }) => {
     if (!timer) return;
 
     if (timer.mode === 'stopwatch') {
-      await updateTimeSpentInDb(taskId, timer.time - (timers.get(taskId)?.time || 0));
+      updateTimeSpentInDb(taskId, timer.time - (timers.get(taskId)?.time || 0));
     }
     
     setTimers(prev => {

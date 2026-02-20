@@ -5,6 +5,8 @@ import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimest
 import { db } from '@/lib/firebase';
 import { Task, Tag } from '@/types';
 import { useToast } from './use-toast';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 export function useTasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -19,74 +21,97 @@ export function useTasks() {
       const tasksData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task));
       setTasks(tasksData);
       setLoading(false);
-    }, (error) => {
-      console.error("Error fetching tasks:", error);
-      toast({ title: "Error", description: "Could not fetch tasks from the cloud.", variant: "destructive" });
+    }, async (error) => {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: 'tasks',
+        operation: 'list',
+      }));
       setLoading(false);
     });
     return () => unsubscribe();
-  }, [toast]);
+  }, []);
   
   useEffect(() => {
     const q = query(collection(db, 'tags'), orderBy('name'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const tagsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Tag));
       setTags(tagsData);
-    }, (error) => {
-      console.error("Error fetching tags:", error);
-      toast({ title: "Error", description: "Could not fetch tags from the cloud.", variant: "destructive" });
+    }, async (error) => {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: 'tags',
+        operation: 'list',
+      }));
     });
     return () => unsubscribe();
-  }, [toast]);
+  }, []);
 
 
-  const addTask = async (task: Omit<Task, 'id' | 'createdAt' | 'timeSpent' | 'status'>) => {
-    try {
-      await addDoc(collection(db, 'tasks'), {
-        ...task,
-        status: 'pending',
-        timeSpent: 0,
-        createdAt: serverTimestamp(),
+  const addTask = (task: Omit<Task, 'id' | 'createdAt' | 'timeSpent' | 'status'>) => {
+    const taskData = {
+      ...task,
+      status: 'pending' as const,
+      timeSpent: 0,
+      createdAt: serverTimestamp(),
+    };
+    addDoc(collection(db, 'tasks'), taskData)
+      .then(() => {
+        toast({ title: "Success", description: "Task created successfully." });
+      })
+      .catch(error => {
+          errorEmitter.emit('permission-error', new FirestorePermissionError({
+              path: 'tasks',
+              operation: 'create',
+              requestResourceData: taskData
+          }));
       });
-      toast({ title: "Success", description: "Task created successfully." });
-    } catch (error) {
-      console.error("Error adding task:", error);
-      toast({ title: "Error", description: "Could not create the task.", variant: "destructive" });
-    }
   };
 
-  const updateTask = async (taskId: string, updates: Partial<Task>) => {
-    try {
-      await updateDoc(doc(db, 'tasks', taskId), updates);
-      toast({ title: "Success", description: "Task updated." });
-    } catch (error) {
-      console.error("Error updating task:", error);
-      toast({ title: "Error", description: "Could not update the task.", variant: "destructive" });
-    }
+  const updateTask = (taskId: string, updates: Partial<Task>) => {
+    const taskRef = doc(db, 'tasks', taskId);
+    updateDoc(taskRef, updates)
+      .then(() => {
+          toast({ title: "Success", description: "Task updated." });
+      })
+      .catch(error => {
+          errorEmitter.emit('permission-error', new FirestorePermissionError({
+              path: taskRef.path,
+              operation: 'update',
+              requestResourceData: updates
+          }));
+      });
   };
 
-  const deleteTask = async (taskId: string) => {
-    try {
-      await deleteDoc(doc(db, 'tasks', taskId));
-      toast({ title: "Success", description: "Task deleted." });
-    } catch (error) {
-      console.error("Error deleting task:", error);
-      toast({ title: "Error", description: "Could not delete the task.", variant: "destructive" });
-    }
+  const deleteTask = (taskId: string) => {
+    const taskRef = doc(db, 'tasks', taskId);
+    deleteDoc(taskRef)
+      .then(() => {
+          toast({ title: "Success", description: "Task deleted." });
+      })
+      .catch(error => {
+          errorEmitter.emit('permission-error', new FirestorePermissionError({
+              path: taskRef.path,
+              operation: 'delete'
+          }));
+      });
   };
   
-  const addTag = async (tagName: string) => {
+  const addTag = (tagName: string) => {
     if (tags.some(tag => tag.name.toLowerCase() === tagName.toLowerCase())) {
         toast({ title: "Info", description: "Tag already exists." });
         return;
     }
-    try {
-      await addDoc(collection(db, 'tags'), { name: tagName });
-      toast({ title: "Success", description: `Tag "${tagName}" created.` });
-    } catch (error) {
-      console.error("Error adding tag:", error);
-      toast({ title: "Error", description: "Could not create the tag.", variant: "destructive" });
-    }
+    const tagData = { name: tagName };
+    addDoc(collection(db, 'tags'), tagData)
+      .then(() => {
+          toast({ title: "Success", description: `Tag "${tagName}" created.` });
+      })
+      .catch(error => {
+          errorEmitter.emit('permission-error', new FirestorePermissionError({
+              path: 'tags',
+              operation: 'create',
+              requestResourceData: tagData
+          }));
+      });
   };
 
   return { tasks, tags, loading, addTask, updateTask, deleteTask, addTag };
