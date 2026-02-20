@@ -62,10 +62,10 @@ service cloud.firestore {
 
     /**
      * Enforces immutability for the `id` field on a UserProfile document.
-     * This prevents re-assigning a profile to a different user.
+     * An update operation must not attempt to change the 'id'.
      */
     function isImmutableUserProfileUpdate() {
-      return request.resource.data.id == resource.data.id;
+      return !('id' in request.resource.data);
     }
 
     /**
@@ -80,10 +80,10 @@ service cloud.firestore {
 
     /**
      * Enforces immutability for the `userId` and `id` fields on subcollection documents.
-     * This preserves the ownership link and unique identifier.
+     * An update operation must not attempt to change these fields.
      */
     function isImmutableSubcollectionUpdate() {
-      return request.resource.data.userId == resource.data.userId && request.resource.data.id == resource.data.id;
+      return !('id' in request.resource.data) && !('userId' in request.resource.data);
     }
 
     /**
@@ -101,18 +101,48 @@ service cloud.firestore {
       allow delete: if isExistingOwner(userId);
 
       /**
-       * @description Rules for all user-owned subcollections (tags, periods, activities, etc.).
-       * @path /users/{userId}/{anySubcollection}/{docId}
-       * @allow (list) An authenticated user can list all documents in their own `/tags` subcollection.
-       * @deny (get) An authenticated user cannot get a document from another user's subcollection.
-       * @principle Enforces document ownership for all reads and writes in nested collections.
+       * @description Rules for the `tasks` subcollection.
        */
-      match /{anySubcollection}/{docId} {
-        allow get: if isOwner(userId);
-        allow list: if isOwner(userId);
+      match /tasks/{docId} {
+        allow get, list, delete: if isOwner(userId);
         allow create: if isOwner(userId) && isValidSubcollectionCreate(userId, docId);
         allow update: if isExistingOwner(userId) && isImmutableSubcollectionUpdate();
-        allow delete: if isExistingOwner(userId);
+      }
+
+      /**
+       * @description Rules for the `tags` subcollection.
+       */
+      match /tags/{docId} {
+        allow get, list, delete: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidSubcollectionCreate(userId, docId);
+        allow update: if isExistingOwner(userId) && isImmutableSubcollectionUpdate();
+      }
+
+      /**
+       * @description Rules for the `periods` subcollection.
+       */
+      match /periods/{docId} {
+        allow get, list, delete: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidSubcollectionCreate(userId, docId);
+        allow update: if isExistingOwner(userId) && isImmutableSubcollectionUpdate();
+      }
+
+      /**
+       * @description Rules for the `activeTimerSessions` subcollection.
+       */
+      match /activeTimerSessions/{docId} {
+        allow get, list, delete: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidSubcollectionCreate(userId, docId);
+        allow update: if isExistingOwner(userId) && isImmutableSubcollectionUpdate();
+      }
+
+      /**
+       * @description Rules for the `activityLogs` subcollection.
+       */
+      match /activityLogs/{docId} {
+        allow get, list, delete: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidSubcollectionCreate(userId, docId);
+        allow update: if isExistingOwner(userId) && isImmutableSubcollectionUpdate();
       }
     }
   }
