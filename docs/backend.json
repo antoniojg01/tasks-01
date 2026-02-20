@@ -1,0 +1,499 @@
+{
+  "entities": {
+    "UserProfile": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UserProfile",
+      "type": "object",
+      "description": "Represents a user of the application, storing basic profile information.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the UserProfile entity."
+        },
+        "email": {
+          "type": "string",
+          "description": "The user's email address, used for identification and communication.",
+          "format": "email"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "The user's display name or full name."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the user profile was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the user profile was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "createdAt"
+      ]
+    },
+    "Tag": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Tag",
+      "type": "object",
+      "description": "Represents a customizable tag for categorizing and prioritizing activities.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Tag entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the tag (e.g., 'Work', 'Urgent', 'Personal')."
+        },
+        "description": {
+          "type": "string",
+          "description": "An optional longer description of what the tag represents."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to UserProfile. (Relationship: UserProfile 1:N Tag)"
+        },
+        "colorHex": {
+          "type": "string",
+          "description": "Hexadecimal color code for UI representation of the tag (e.g., '#FF5733')."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the tag was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the tag was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "userId",
+        "createdAt"
+      ]
+    },
+    "Period": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Period",
+      "type": "object",
+      "description": "Represents a user-defined time period or category for scheduling activities (e.g., 'Today', 'This Week', 'Morning Block').",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Period entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the period (e.g., 'Today', 'This Week', 'Q1 2024')."
+        },
+        "description": {
+          "type": "string",
+          "description": "An optional longer description of the period."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to UserProfile. (Relationship: UserProfile 1:N Period)"
+        },
+        "startDate": {
+          "type": "string",
+          "description": "The start date of the period, if applicable.",
+          "format": "date"
+        },
+        "endDate": {
+          "type": "string",
+          "description": "The end date of the period, if applicable.",
+          "format": "date"
+        },
+        "order": {
+          "type": "number",
+          "description": "An integer representing the display order of the period for the user."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the period was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the period was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "userId",
+        "createdAt"
+      ]
+    },
+    "Activity": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Activity",
+      "type": "object",
+      "description": "Represents a task or a habit, including its definition, estimated time, and settings.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Activity entity."
+        },
+        "title": {
+          "type": "string",
+          "description": "The title or name of the task or habit."
+        },
+        "description": {
+          "type": "string",
+          "description": "A detailed description of the activity."
+        },
+        "estimatedTimeMinutes": {
+          "type": "number",
+          "description": "The estimated time in minutes required to complete the activity."
+        },
+        "type": {
+          "type": "string",
+          "description": "The type of activity, either 'task' (one-off) or 'habit' (recurring)."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to UserProfile. (Relationship: UserProfile 1:N Activity)"
+        },
+        "tagIds": {
+          "type": "array",
+          "description": "References to Tags associated with this activity. (Relationship: Tag N:N Activity)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "status": {
+          "type": "string",
+          "description": "The current status of the activity (e.g., 'pending', 'in-progress', 'completed', 'abandoned'). For habits, this typically refers to the overall state of the habit adherence."
+        },
+        "periodId": {
+          "type": "string",
+          "description": "Reference to Period, indicating which period this activity is assigned to. (Relationship: Period 1:N Activity)"
+        },
+        "isRecurring": {
+          "type": "boolean",
+          "description": "Indicates if the activity is a recurring habit (true) or a one-off task (false)."
+        },
+        "recurrencePattern": {
+          "type": "string",
+          "description": "Describes the recurrence pattern for habits (e.g., 'daily', 'weekly', 'monthly')."
+        },
+        "pomodoroDurationMinutes": {
+          "type": "number",
+          "description": "The duration of a work session in minutes for the Pomodoro timer associated with this activity."
+        },
+        "shortBreakDurationMinutes": {
+          "type": "number",
+          "description": "The duration of a short break in minutes for the Pomodoro timer."
+        },
+        "longBreakDurationMinutes": {
+          "type": "number",
+          "description": "The duration of a long break in minutes for the Pomodoro timer."
+        },
+        "pomodoroCyclesUntilLongBreak": {
+          "type": "number",
+          "description": "The number of Pomodoro work cycles before a long break is taken."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the activity was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the activity was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "type",
+        "userId",
+        "status",
+        "periodId",
+        "isRecurring",
+        "createdAt"
+      ]
+    },
+    "ActiveTimerSession": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ActiveTimerSession",
+      "type": "object",
+      "description": "Stores the volatile, real-time state of an active timer for an activity, enabling parallel execution and UI updates.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the ActiveTimerSession entity."
+        },
+        "activityId": {
+          "type": "string",
+          "description": "Reference to the Activity that this timer session is for. (Relationship: Activity 1:1 ActiveTimerSession)"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to UserProfile. (Relationship: UserProfile 1:N ActiveTimerSession)"
+        },
+        "timerType": {
+          "type": "string",
+          "description": "The type of timer currently active ('stopwatch', 'pomodoro', 'countdown')."
+        },
+        "isRunning": {
+          "type": "boolean",
+          "description": "Indicates if the timer is currently running (true) or paused (false)."
+        },
+        "startTime": {
+          "type": "string",
+          "description": "Timestamp when the current timer session started or was last resumed.",
+          "format": "date-time"
+        },
+        "elapsedTimeSeconds": {
+          "type": "number",
+          "description": "The total time accumulated in seconds for the current running session of the activity."
+        },
+        "targetTimeSeconds": {
+          "type": "number",
+          "description": "The target duration in seconds for countdowns or the current phase of a Pomodoro timer."
+        },
+        "pomodoroState": {
+          "type": "string",
+          "description": "The current state of the Pomodoro timer ('work', 'shortBreak', 'longBreak') if timerType is 'pomodoro'."
+        },
+        "pomodoroCurrentCycle": {
+          "type": "number",
+          "description": "The current Pomodoro work cycle count within the active session."
+        },
+        "lastUpdateTime": {
+          "type": "string",
+          "description": "Timestamp when the timer's elapsed time was last updated in the backend, useful for re-syncing.",
+          "format": "date-time"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when this timer session was initiated.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when this timer session was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "activityId",
+        "userId",
+        "timerType",
+        "isRunning",
+        "elapsedTimeSeconds",
+        "createdAt"
+      ]
+    },
+    "ActivityLog": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ActivityLog",
+      "type": "object",
+      "description": "Records historical data for activity completions and time spent, used for statistics and habit tracking.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the ActivityLog entity."
+        },
+        "activityId": {
+          "type": "string",
+          "description": "Reference to the Activity that this log entry is for. (Relationship: Activity 1:N ActivityLog)"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to UserProfile. (Relationship: UserProfile 1:N ActivityLog)"
+        },
+        "logDate": {
+          "type": "string",
+          "description": "The date this log entry refers to, important for tracking daily habits.",
+          "format": "date"
+        },
+        "startTime": {
+          "type": "string",
+          "description": "Optional: Timestamp when the recorded session started.",
+          "format": "date-time"
+        },
+        "endTime": {
+          "type": "string",
+          "description": "Optional: Timestamp when the recorded session ended.",
+          "format": "date-time"
+        },
+        "durationSeconds": {
+          "type": "number",
+          "description": "The total time spent in seconds for this particular logged instance or session of the activity."
+        },
+        "statusAtCompletion": {
+          "type": "string",
+          "description": "The status of this specific instance or session (e.g., 'completed', 'partial', 'abandoned', 'skipped')."
+        },
+        "pomodoroCyclesCompleted": {
+          "type": "number",
+          "description": "The number of Pomodoro work cycles completed during this logged session."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Optional notes related to this specific activity log entry."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the log entry was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the log entry was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "activityId",
+        "userId",
+        "logDate",
+        "durationSeconds",
+        "statusAtCompletion",
+        "createdAt"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "UserProfile",
+          "schema": {
+            "$ref": "#/backend/entities/UserProfile"
+          },
+          "description": "Stores individual user profile information. The 'id' field of the UserProfile document must match the '{userId}' in the path. This serves as the root for all user-specific data.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user, matching 'request.auth.uid' and the 'id' field of the UserProfile document."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/tags/{tagId}",
+        "definition": {
+          "entityName": "Tag",
+          "schema": {
+            "$ref": "#/backend/entities/Tag"
+          },
+          "description": "A subcollection storing tags custom-defined by a user. The 'userId' field within each Tag document must match the '{userId}' in the path for authorization independence and QAPs compliance. Allows listing of all tags for the authenticated user.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user, matching 'request.auth.uid'."
+            },
+            {
+              "name": "tagId",
+              "description": "The unique identifier for the Tag document, matching the 'id' field."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/periods/{periodId}",
+        "definition": {
+          "entityName": "Period",
+          "schema": {
+            "$ref": "#/backend/entities/Period"
+          },
+          "description": "A subcollection storing time periods or categories defined by a user. The 'userId' field within each Period document must match the '{userId}' in the path for authorization independence. Allows listing of all periods for the authenticated user.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user, matching 'request.auth.uid'."
+            },
+            {
+              "name": "periodId",
+              "description": "The unique identifier for the Period document, matching the 'id' field."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/activities/{activityId}",
+        "definition": {
+          "entityName": "Activity",
+          "schema": {
+            "$ref": "#/backend/entities/Activity"
+          },
+          "description": "A subcollection storing tasks and habits created by a user. The 'userId' field within each Activity document must match the '{userId}' in the path for authorization independence. Allows listing of all activities for the authenticated user.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user, matching 'request.auth.uid'."
+            },
+            {
+              "name": "activityId",
+              "description": "The unique identifier for the Activity document, matching the 'id' field."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/activeTimerSessions/{timerSessionId}",
+        "definition": {
+          "entityName": "ActiveTimerSession",
+          "schema": {
+            "$ref": "#/backend/entities/ActiveTimerSession"
+          },
+          "description": "A subcollection storing active timer states for user activities. The 'userId' field within each ActiveTimerSession document must match the '{userId}' in the path for authorization independence. Designed to support multiple concurrent timers per user.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user, matching 'request.auth.uid'."
+            },
+            {
+              "name": "timerSessionId",
+              "description": "The unique identifier for the ActiveTimerSession document, matching the 'id' field."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/activityLogs/{activityLogId}",
+        "definition": {
+          "entityName": "ActivityLog",
+          "schema": {
+            "$ref": "#/backend/entities/ActivityLog"
+          },
+          "description": "A subcollection storing historical log entries for user activities. The 'userId' field within each ActivityLog document must match the '{userId}' in the path for authorization independence. Used for statistics and habit tracking.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user, matching 'request.auth.uid'."
+            },
+            {
+              "name": "activityLogId",
+              "description": "The unique identifier for the ActivityLog document, matching the 'id' field."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The recommended Firestore data structure prioritizes Authorization Independence and Structural Segregation to ensure robust, debuggable security rules and efficient data access. The core principle applied is path-based ownership for all user-specific data. Instead of storing collections like `tags` or `activities` at the root level, they are nested directly under a user's profile path: `/users/{userId}/<collectionName>`. This strategy inherently links documents to their owners via the document path, making the `request.auth.uid` directly comparable to the `{userId}` wildcard in security rules, eliminating the need for `get()` operations.\n\n**Authorization Independence (CRITICAL):** By nesting all personal data under `/users/{userId}/...`, the `userId` parameter in the path itself serves as the primary authorization context. For example, a `Tag` document at `/users/{userId}/tags/{tagId}` automatically inherits its ownership context from the parent path. The `userId` field within the `Tag` document is denormalized to explicitly match the `userId` in the path, making rules atomic and independent. No `get()` calls to parent documents (e.g., to fetch the owner of a `Tag` from a `/tags/{tagId}` collection) are required.\n\n**QAPs (Rules are not Filters):** This structure directly addresses the `FirestorePermissionError` encountered for the `tags` collection. The previous attempt to list from a global `/tags` collection would fail because security rules cannot efficiently filter arbitrary collections by a `userId` field while satisfying `list` operation requirements. By moving tags to `/users/{userId}/tags`, a user can now perform a `list` operation on `/users/{request.auth.uid}/tags`. The security rules will then simply verify that `request.auth.uid` matches the `userId` in the path, allowing access to *all* documents in that specific user's `tags` subcollection without requiring complex, inefficient, or insecure database-level filtering in the rules. This applies similarly to all other user-owned collections (Periods, Activities, ActiveTimerSessions, ActivityLogs).\n\n**Structural Segregation:** Each collection (`tags`, `periods`, `activities`, etc.) within a user's path (`/users/{userId}/`) contains only documents owned by that specific `userId`. This ensures a homogeneous security posture for all documents within these subcollections, simplifying rule logic significantly. For instance, all tags under `/users/{userId}/tags` are accessible only by `userId`.\n\n**Access Modeling:** The design exclusively uses Path-Based ownership for all entities. `UserProfile` is at `/users/{userId}`. `Tag`, `Period`, `Activity`, `ActiveTimerSession`, and `ActivityLog` are all 1:N relationships to `UserProfile` and are nested hierarchically under the user's path, following the `User 1:N Entity` and `Continue Hierarchy for Nested Data` mandates. The `userId` field exists in all these entities, explicitly denormalizing the ownership information to the document level, which further reinforces authorization independence and clarity."
+  }
+}
