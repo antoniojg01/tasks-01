@@ -9,12 +9,12 @@ import { FirebaseClientProvider } from "@/firebase/client-provider";
 export function Providers({ children }: { children: ReactNode }) {
   return (
     <FirebaseClientProvider>
-      <EnsureAuthenticated>
-        <TimerProvider>
+      <TimerProvider>
+        <EnsureAuthenticated>
           {children}
           <FirebaseErrorListener />
-        </TimerProvider>
-      </EnsureAuthenticated>
+        </EnsureAuthenticated>
+      </TimerProvider>
     </FirebaseClientProvider>
   );
 }
