@@ -15,6 +15,7 @@ export interface Task {
   status: TaskStatus;
   timeSpent: number; // in seconds
   createdAt: Timestamp;
+  updatedAt?: Timestamp;
   userId: string;
   pomodoroSettings?: PomodoroSettings;
 }

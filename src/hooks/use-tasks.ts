@@ -70,7 +70,7 @@ export function useTasks() {
       const periodsData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Period));
       if (snapshot.empty) {
         const newId = doc(collection(db, 'users', user.uid, 'periods')).id;
-        const defaultPeriod = { id: newId, name: 'Anytime', userId: user.uid, createdAt: serverTimestamp() };
+        const defaultPeriod = { id: newId, name: 'Anytime', userId: user.uid, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
         const periodRef = doc(db, 'users', user.uid, 'periods', newId);
         setDoc(periodRef, defaultPeriod).catch(error => {
           errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -91,7 +91,7 @@ export function useTasks() {
   }, [db, user]);
 
 
-  const addTask = useCallback((task: Omit<Task, 'id' | 'createdAt' | 'timeSpent' | 'status' | 'userId'>) => {
+  const addTask = useCallback((task: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'timeSpent' | 'status' | 'userId'>) => {
     if (!user) {
         toast({ variant: 'destructive', title: "Error", description: "You must be logged in to add a task." });
         return;
@@ -104,6 +104,7 @@ export function useTasks() {
       status: 'pending' as const,
       timeSpent: 0,
       createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
     };
     const taskRef = doc(db, 'users', user.uid, 'tasks', newId);
 
@@ -120,10 +121,10 @@ export function useTasks() {
       });
   }, [db, user, toast]);
 
-  const updateTask = useCallback((taskId: string, updates: Partial<Task>) => {
+  const updateTask = useCallback((taskId: string, updates: Partial<Omit<Task, 'id' | 'userId' | 'createdAt'>>) => {
     if (!user) return;
     const taskRef = doc(db, 'users', user.uid, 'tasks', taskId);
-    updateDoc(taskRef, updates)
+    updateDoc(taskRef, { ...updates, updatedAt: serverTimestamp() })
       .then(() => {
           toast({ title: "Success", description: "Task updated." });
       })
@@ -131,7 +132,7 @@ export function useTasks() {
           errorEmitter.emit('permission-error', new FirestorePermissionError({
               path: taskRef.path,
               operation: 'update',
-              requestResourceData: updates
+              requestResourceData: { ...updates, updatedAt: 'ServerValue.TIMESTAMP' }
           }));
       });
   }, [db, user, toast]);
@@ -161,7 +162,7 @@ export function useTasks() {
         return;
     }
     const newId = doc(collection(db, 'users', user.uid, 'tags')).id;
-    const tagData = { id: newId, name: tagName, userId: user.uid, createdAt: serverTimestamp() };
+    const tagData = { id: newId, name: tagName, userId: user.uid, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
     const tagRef = doc(db, 'users', user.uid, 'tags', newId);
 
     setDoc(tagRef, tagData)
@@ -187,7 +188,7 @@ export function useTasks() {
         return;
     }
     const newId = doc(collection(db, 'users', user.uid, 'periods')).id;
-    const periodData = { id: newId, name: periodName, userId: user.uid, createdAt: serverTimestamp() };
+    const periodData = { id: newId, name: periodName, userId: user.uid, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
     const periodRef = doc(db, 'users', user.uid, 'periods', newId);
 
     setDoc(periodRef, periodData)

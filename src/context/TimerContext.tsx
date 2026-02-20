@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, Rea
 import { formatTime } from '@/lib/utils';
 import type { Task, TimerMode, PomodoroSettings } from '@/types';
 import { DEFAULT_POMODORO_SETTINGS } from '@/types';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useFirestore, useUser } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -18,6 +18,7 @@ interface TimerState {
   currentCycle: number;
   pomodoroSettings: PomodoroSettings;
   startTime: number | null;
+  initialTimeSpent: number;
 }
 
 interface TimerContextType {
@@ -37,34 +38,28 @@ export const TimerProvider = ({ children }: { children: ReactNode }) => {
   const db = useFirestore();
   const { user } = useUser();
 
-  const updateTimeSpentInDb = useCallback((taskId: string, timeToAdd: number) => {
-    if (!user) return;
-    const taskRef = doc(db, 'users', user.uid, 'tasks', taskId);
-    const currentTimer = timers.get(taskId);
-    if (!currentTimer) return;
-    
-    const newTimeSpent = Math.max(0, (timers.get(taskId)?.time || 0) + timeToAdd);
-
-    const updates = { timeSpent: newTimeSpent };
-    updateDoc(taskRef, updates)
-      .catch((error) => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: taskRef.path,
-            operation: 'update',
-            requestResourceData: updates,
-        }));
-      });
-  }, [db, user, timers]);
-
   const pauseTimer = useCallback((taskId: string) => {
+    if (!user) return;
     const timer = timers.get(taskId);
     if (timer && timer.isRunning) {
       const elapsed = timer.startTime ? Math.floor((Date.now() - timer.startTime) / 1000) : 0;
-      const newTime = timer.mode === 'timer' ? timer.time - elapsed : timer.time + elapsed;
+      
+      let newTimeForDisplay: number;
+      let newTotalTimeSpent: number | null = null;
+
+      if (timer.mode === 'stopwatch') {
+          newTotalTimeSpent = timer.initialTimeSpent + elapsed;
+          newTimeForDisplay = newTotalTimeSpent;
+      } else if (timer.mode === 'pomodoro' && timer.pomodoroState === 'work') {
+          newTotalTimeSpent = timer.initialTimeSpent + elapsed;
+          newTimeForDisplay = timer.time - elapsed;
+      } else {
+          newTimeForDisplay = timer.time - elapsed;
+      }
 
       setTimers(prev => {
         const newTimers = new Map(prev);
-        newTimers.set(taskId, { ...timer, time: Math.max(0, newTime), isRunning: false, startTime: null });
+        newTimers.set(taskId, { ...timer, time: Math.max(0, newTimeForDisplay), isRunning: false, startTime: null });
         return newTimers;
       });
 
@@ -73,25 +68,44 @@ export const TimerProvider = ({ children }: { children: ReactNode }) => {
         setActiveTimerInTitle(null);
       }
       
-      if (user) {
-        const taskRef = doc(db, 'users', user.uid, 'tasks', taskId);
-        const updates = { status: 'pending' as const };
-        updateDoc(taskRef, updates).catch(error => {
-          errorEmitter.emit('permission-error', new FirestorePermissionError({
-              path: taskRef.path,
-              operation: 'update',
-              requestResourceData: updates
-          }));
-        });
+      const taskRef = doc(db, 'users', user.uid, 'tasks', taskId);
+      const updates: Partial<Task> = { status: 'pending', updatedAt: serverTimestamp() };
+      if (newTotalTimeSpent !== null) {
+          updates.timeSpent = newTotalTimeSpent;
       }
+
+      updateDoc(taskRef, updates).catch(error => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: taskRef.path,
+            operation: 'update',
+            requestResourceData: updates
+        }));
+      });
     }
   }, [db, user, timers, activeTimerInTitle]);
 
   const handlePomodoroTransition = useCallback((taskId: string) => {
+    if (!user) return;
     setTimers(prev => {
         const newTimers = new Map(prev);
         const timer = newTimers.get(taskId);
         if (!timer || timer.mode !== 'pomodoro') return prev;
+
+        let newTotalTimeSpent = timer.initialTimeSpent;
+        if (timer.pomodoroState === 'work') {
+            const workDurationInSeconds = timer.pomodoroSettings.workDuration * 60;
+            newTotalTimeSpent = timer.initialTimeSpent + workDurationInSeconds;
+
+            const taskRef = doc(db, 'users', user.uid, 'tasks', taskId);
+            const updates = { timeSpent: newTotalTimeSpent, updatedAt: serverTimestamp() };
+            updateDoc(taskRef, updates).catch(error => {
+                errorEmitter.emit('permission-error', new FirestorePermissionError({
+                    path: taskRef.path,
+                    operation: 'update',
+                    requestResourceData: updates,
+                }));
+            });
+        }
 
         let nextState: 'work' | 'shortBreak' | 'longBreak' = timer.pomodoroState;
         let nextTime = timer.time;
@@ -112,7 +126,7 @@ export const TimerProvider = ({ children }: { children: ReactNode }) => {
                 notificationTitle = "Short Break Time!";
                 notificationMessage = `Time for a ${timer.pomodoroSettings.shortBreakDuration}-minute break.`;
             }
-        } else { // shortBreak or longBreak
+        } else {
             nextState = 'work';
             nextTime = timer.pomodoroSettings.workDuration * 60;
             notificationTitle = "Back to Work!";
@@ -126,10 +140,11 @@ export const TimerProvider = ({ children }: { children: ReactNode }) => {
             time: nextTime,
             currentCycle: nextCycle,
             startTime: Date.now(),
+            initialTimeSpent: newTotalTimeSpent,
         });
         return newTimers;
     });
-  }, [toast]);
+  }, [toast, db, user]);
 
 
   useEffect(() => {
@@ -156,14 +171,10 @@ export const TimerProvider = ({ children }: { children: ReactNode }) => {
                       setActiveTimerInTitle(null);
                     }
                 }
-              } else {
-                // No state update needed here, time is only for display
               }
-            } else { // stopwatch
-              newTime = (timer.time || 0) + elapsed;
             }
 
-            const displayTime = timer.startTime ? (timer.mode === 'timer' || timer.mode === 'pomodoro' ? timer.time - Math.floor((Date.now() - timer.startTime) / 1000) : timer.time + Math.floor((Date.now() - timer.startTime) / 1000)) : timer.time;
+            const displayTime = timer.startTime ? (timer.mode === 'timer' || timer.mode === 'pomodoro' ? timer.time - Math.floor((Date.now() - timer.startTime) / 1000) : timer.initialTimeSpent + Math.floor((Date.now() - timer.startTime) / 1000)) : timer.time;
 
 
             if (activeTimerInTitle === taskId) {
@@ -187,7 +198,6 @@ export const TimerProvider = ({ children }: { children: ReactNode }) => {
   const startTimer = (task: Task, mode: TimerMode, duration: number = 0) => {
     if (!user) return;
     
-    // Pause any other running timer
     timers.forEach((timer, timerId) => {
         if (timer.isRunning && timerId !== task.id) {
             pauseTimer(timerId);
@@ -198,34 +208,35 @@ export const TimerProvider = ({ children }: { children: ReactNode }) => {
       const newTimers = new Map(prev);
       const existingTimer = prev.get(task.id);
 
-      let time = existingTimer?.time ?? task.timeSpent;
-      let pomodoroState: 'work' | 'shortBreak' | 'longBreak' = 'work';
-      let currentCycle = 1;
+      const baseTime = existingTimer?.time ?? task.timeSpent;
+      const initialTimeSpent = existingTimer?.initialTimeSpent ?? task.timeSpent;
+      const pomodoroState = existingTimer?.pomodoroState ?? 'work';
+      const currentCycle = existingTimer?.currentCycle ?? 1;
+
+      let time = baseTime;
 
       if (mode !== existingTimer?.mode) {
           if(mode === 'timer') time = duration * 60;
           if(mode === 'pomodoro') time = (task.pomodoroSettings?.workDuration || DEFAULT_POMODORO_SETTINGS.workDuration) * 60;
           if(mode === 'stopwatch') time = task.timeSpent;
-      } else if (existingTimer) {
-          pomodoroState = existingTimer.pomodoroState;
-          currentCycle = existingTimer.currentCycle;
       }
-
+      
       newTimers.set(task.id, {
-        time: time,
+        time,
         isRunning: true,
         mode,
         pomodoroState,
         currentCycle,
         pomodoroSettings: task.pomodoroSettings || DEFAULT_POMODORO_SETTINGS,
         startTime: Date.now(),
+        initialTimeSpent,
       });
       return newTimers;
     });
     
     setActiveTimerInTitle(task.id);
     const taskRef = doc(db, 'users', user.uid, 'tasks', task.id);
-    const updates = { status: 'in-progress' as const };
+    const updates = { status: 'in-progress' as const, updatedAt: serverTimestamp() };
     updateDoc(taskRef, updates).catch(error => {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: taskRef.path,
@@ -243,30 +254,48 @@ export const TimerProvider = ({ children }: { children: ReactNode }) => {
         const elapsed = Math.floor((Date.now() - timer.startTime) / 1000);
         const displayTime = (timer.mode === 'timer' || timer.mode === 'pomodoro')
             ? Math.max(0, timer.time - elapsed)
-            : timer.time + elapsed;
+            : timer.initialTimeSpent + elapsed;
         return { ...timer, time: displayTime };
     }
     return timer;
   };
 
-  const resetTimer = async (taskId: string) => {
+  const resetTimer = (taskId: string) => {
     if (!user) return;
     const timer = timers.get(taskId);
     if (!timer) return;
 
-    let timeToSet = 0;
-    if(timer.mode === 'stopwatch' && timer.isRunning){
-        const elapsed = timer.startTime ? Math.floor((Date.now() - timer.startTime) / 1000) : 0;
-        updateTimeSpentInDb(taskId, elapsed);
-    } else if (timer.mode === 'stopwatch' && !timer.isRunning) {
-        updateTimeSpentInDb(taskId, -timer.time);
+    let timeToSetForDisplay = 0;
+    let initialTimeSpentToSet = timer.initialTimeSpent;
+    
+    if (timer.mode === 'stopwatch') {
+      const taskRef = doc(db, 'users', user.uid, 'tasks', taskId);
+      updateDoc(taskRef, { timeSpent: 0, updatedAt: serverTimestamp() }).catch(error => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: taskRef.path,
+          operation: 'update',
+          requestResourceData: { timeSpent: 0, updatedAt: 'ServerValue.TIMESTAMP' }
+        }));
+      });
+      timeToSetForDisplay = 0;
+      initialTimeSpentToSet = 0;
+    } else if (timer.mode === 'pomodoro') {
+       timeToSetForDisplay = timer.pomodoroSettings.workDuration * 60;
     }
     
     setTimers(prev => {
       const newTimers = new Map(prev);
       const existing = newTimers.get(taskId);
       if(existing) {
-        newTimers.set(taskId, { ...existing, time: timeToSet, isRunning: false, startTime: null });
+        newTimers.set(taskId, { 
+            ...existing, 
+            time: timeToSetForDisplay, 
+            isRunning: false, 
+            startTime: null,
+            pomodoroState: 'work',
+            currentCycle: 1,
+            initialTimeSpent: initialTimeSpentToSet,
+        });
       }
       return newTimers;
     });
